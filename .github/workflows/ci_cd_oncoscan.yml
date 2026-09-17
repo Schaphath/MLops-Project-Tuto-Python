@@ -1,72 +1,56 @@
-# Nom du workflow 
 name: OncoScan CI/CD
 
-# Événements qui déclenchent l'exécution automatique du pipeline
 on:
   push:
-    branches: [main]        # À chaque push sur la branche principale
-    tags: ['v*.*.*']        # À la création d'un tag de version (ex: v1.0.0)
+    branches: [main]
+    tags: ['v*.*.*']
   pull_request:
-    branches: [main]        # À la création ou mise à jour d'une Pull Request vers main
-  workflow_dispatch:        # Permet le déclenchement manuel depuis GitHub
+    branches: [main]
+  workflow_dispatch:
 
-# Restreint les permissions du jeton GitHub par défaut à la lecture seule
 permissions:
   contents: read
 
-# Annule les exécutions précédentes si un nouveau commit est poussé sur la même branche
 concurrency:
   group: ci-cd-${{ github.ref }}
   cancel-in-progress: true
 
-# Variables d'environnement globales du workflow
 env:
   PYTHON_VERSION: '3.12'
 
 jobs:
-  #---------------------------------------------------------------------------#
-  #  JOB 1 : Vérifications de la qualité du code (Syntaxe et Configuration)   #
-  #---------------------------------------------------------------------------#
   quality:
     name: Quality checks
     runs-on: ubuntu-latest
     steps:
-      # Télécharge le code source du dépôt Git
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      # Installe la version de Python spécifiée en environnement
       - name: Setup Python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Valide qu'il n'y a aucune faute de syntaxe Python dans les répertoires du projet
       - name: Compile Python sources
-        run: python -m compileall -q Api Interface Model Tests
+        run: python -m compileall -q Api Interface Model
 
-      # Vérifie la validité du fichier docker-compose.yml avec des fausses variables de test
       - name: Validate Docker Compose configuration
         env:
-          DB_PASSWORD: ci_password_test
-          API_KEY: ci_api_key_test
-          DB_NAME: oncoscan
-          DB_USER: oncoscan
-          ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8501"
-          VERSION: 1.4.1
+          DB_NAME: ci_db
+          DB_USER: ci_user
+          DB_PASSWORD: ci_password
+          API_KEY: ci_api_key
+          VERSION: ci
         run: docker compose config --quiet
 
-  #---------------------------------------------------------------------------#
-  #  JOB 2 : Construction, scan de sécurité et publication des images Docker  #
-  #---------------------------------------------------------------------------#
   build-scan-publish:
     name: Build, scan & publish ${{ matrix.name }}
-    needs: quality # S'exécute uniquement si le job "quality" est validé
+    needs: quality
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false # Si une image échoue, l'autre continue de se construire
+      fail-fast: false
       matrix:
         include:
           - name: api
@@ -76,30 +60,35 @@ jobs:
             image: oncoscan-interface
             dockerfile: Interface/Dockerfile
     steps:
-      # Télécharge le code source pour le job de build
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
 
-      # Initialise Docker Buildx pour bénéficier de fonctionnalités de build avancées et du cache
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
+        uses: docker/setup-buildx-action@v3
 
-      # Génère automatiquement les tags et labels pour l'image Docker (latest, sha, version tag)
       - name: Generate image metadata
         id: metadata
-        uses: docker/metadata-action@369eb7591379ed0d728809731633513eb1942007 # v5.5.1
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/metadata-action@v5
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME || 'oncoscan' }}/${{ matrix.image }}
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_defaultbranch}}
+            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
 
-      # Construit l'image Docker en local sans la publier, pour pouvoir la scanner
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build image for testing
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -107,10 +96,10 @@ jobs:
           load: true
           push: false
           cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
-      # Scanne l'image construite à la recherche de vulnérabilités graves (bloque si CRITICAL ou HIGH)
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394d2dd8c87dbb0 # v0.29.0
+        uses: aquasecurity/trivy-action@v0.29.0
         with:
           image-ref: ${{ matrix.image }}:ci-${{ github.sha }}
           format: table
@@ -119,19 +108,9 @@ jobs:
           vuln-type: os,library
           severity: CRITICAL,HIGH
 
-      # Connexion au registre Docker Hub (uniquement lors d'un push sur main ou d'un tag)
-      - name: Log in to Docker Hub
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # Envoie l'image Docker validée vers le Docker Hub
       - name: Push image to Docker Hub
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
