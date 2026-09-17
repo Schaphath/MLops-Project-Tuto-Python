@@ -1,0 +1,11 @@
+# Versions exactes pour garantir une construction reproductible et sécurisée.
+# Toute modification de versions doit être validée et testée avant mise en production.
+fastapi==0.115.12
+uvicorn==0.33.0
+pandas==2.2.3
+scikit-learn==1.7.1
+prometheus-fastapi-instrumentator==7.1.0
+
+# Dépendances transitive verrouillées pour éliminer les écarts de version non contrôlés.
+starlette>=0.40.0
+msgpack==1.1.0

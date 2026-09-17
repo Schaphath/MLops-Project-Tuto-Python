@@ -1,9 +1,18 @@
-__pycache__/
-.ipynb_checkpoints/
-.pytest_cache/
-.vscode/
+.env
+.env.*
+!.env.example
+
 .venv/
-commandes_git.txt
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.vscode/
+.idea/
 
+.streamlit/secrets.toml
 
-
+*.log
+*.db
+*.sqlite3
+.DS_Store

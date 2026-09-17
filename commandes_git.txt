@@ -15,3 +15,14 @@ git branch -d modification_api
 git pull origin main --rebase
 git push origin main
 git push origin main --force
+
+
+# 1. Sauvegarder les modifications dans le stash
+git stash
+
+# 2. Basculer sur main
+git switch main
+
+# 3. (Quand tu reviendras sur codemodif) Récupérer tes modifications :
+# git switch codemodif
+# git stash pop

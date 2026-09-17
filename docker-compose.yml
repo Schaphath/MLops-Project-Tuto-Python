@@ -1,85 +1,78 @@
-
-version: '3.8'
-
 services:
-  # base de données 
   postgres:
-    image: postgres:15-alpine
-    container_name: oncoscan_db
-    restart: always
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: oncoscan
-      POSTGRES_USER: oncoscan
-      POSTGRES_PASSWORD: oncoscan_secure_password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     volumes:
-      # Initialisation automatique du schéma de production au premier démarrage
-      - ./Database/init_modif.sql:/docker-entrypoint-initdb.d/init.sql
-      # Persistance locale des données 
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - oncoscan_net
+      - pgdata:/var/lib/postgresql/data
+      - ./Database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U oncoscan -d oncoscan"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 10s
+    networks:
+      - db-net
 
-  # Api
   api:
     build:
       context: .
       dockerfile: ./Api/Dockerfile
-    image: oncoscan-api:v2.0
-    container_name: oncoscan_api
-    restart: always
-    ports:
-      - "8000:8000"
+    image: oncoscan-api:${VERSION:-2.0.0}
+    restart: unless-stopped
     environment:
-      - DB_HOST=postgres
-      - DB_NAME=oncoscan
-      - DB_USER=oncoscan
-      - DB_PASSWORD=oncoscan_secure_password
+      API_KEY: ${API_KEY:?API_KEY must be set}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      MODEL_PATH: /app/api/../Save_models/adaboost_pipeline.joblib
+      LOG_LEVEL: INFO
+    volumes:
+      - ./Save_models:/app/Save_models:ro
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      - "8000:8000"
     networks:
-      - oncoscan_net
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s 
+      - internal-net
+      - db-net
 
-  # Interface web
   interface:
     build:
       context: .
       dockerfile: ./Interface/Dockerfile
-    image: oncoscan-interface:v2.0
-    container_name: oncoscan_interface
-    restart: always
-    ports:
-      - "8501:8501"
+    image: oncoscan-app:${VERSION:-2.0.0}
+    restart: unless-stopped
     environment:
-      - API_URL=http://api:8000/predict
+      API_URL: http://api:8000/predict
+      API_KEY: ${API_KEY:?API_KEY must be set}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:?DB_NAME must be set}
+      DB_USER: ${DB_USER:?DB_USER must be set}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      STREAMLIT_SERVER_HEADLESS: "true"
+      STREAMLIT_SERVER_GATHER_USAGE_STATS: "false"
+      STREAMLIT_SERVER_PORT: "8501"
     depends_on:
+      postgres:
+        condition: service_healthy
       api:
         condition: service_healthy
+    ports:
+      - "8501:8501"
     networks:
-      - oncoscan_net
+      - internal-net
+      - db-net
 
-# Volume
 volumes:
-  postgres_data:
-    name: oncoscan_production_data
+  pgdata:
 
-# Reseaux 
 networks:
-  oncoscan_net:
+  internal-net:
     driver: bridge
-
-    
+  db-net:
+    driver: bridge

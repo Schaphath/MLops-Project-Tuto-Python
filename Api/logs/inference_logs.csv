@@ -1,0 +1,2 @@
+timestamp,model_version,perimeter,concave_points,texture,smoothness,symmetry,prediction,probability_malignant
+2026-09-16T06:54:03.207941+00:00,2.0.0,87.46,0.04781,17.77,0.08474,0.1812,B,0.1605
