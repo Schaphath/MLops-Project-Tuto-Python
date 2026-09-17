@@ -30,11 +30,22 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Api/requirements_api.txt
+
+      - name: Run model tests
+        run: |
+          mkdir -p Tests_results
+          pytest Tests/test_model.py -v --json-report --json-report-file=Tests_results/results.json
 
       - name: Compile Python sources
-        run: python -m compileall -q Api Interface
+        run: python -m compileall -q Api Interface Model
 
-      - name: Validate Compose configuration
+      - name: Validate Docker Compose configuration
         env:
           DB_NAME: ci_db
           DB_USER: ci_user
@@ -64,16 +75,9 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/login-action@v3
-        with:
-          registry: docker.io
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
       - name: Generate image metadata
         id: metadata
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: docker/metadata-action@v5
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
@@ -81,6 +85,14 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
+
+      - name: Log in to Docker Hub
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build image for testing
         uses: docker/build-push-action@v6
@@ -101,7 +113,7 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
-          severity: CRITICAL
+          severity: CRITICAL,HIGH
 
       - name: Push image to Docker Hub
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
@@ -113,3 +125,4 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
