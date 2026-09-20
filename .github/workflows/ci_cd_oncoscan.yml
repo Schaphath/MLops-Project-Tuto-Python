@@ -1,33 +1,43 @@
+# À placer dans : .github/workflows/ci-cd.yml
 name: OncoScan CI/CD
 
+# Quand le workflow se déclenche
 on:
   push:
-    branches: [main]
-    tags: ['v*.*.*']
+    branches: [main]          # à chaque push sur main
+    tags: ['v*.*.*']          # à chaque tag de version (ex. v2.0.0)
   pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches: [main]          # à chaque PR vers main (build + tests, SANS publication)
+  workflow_dispatch:          # lancement manuel possible
 
+# Droits minimum du token GitHub : lecture du code uniquement
 permissions:
   contents: read
 
 concurrency:
   group: ci-cd-${{ github.ref }}
-  cancel-in-progress: true
+  # On annule un ancien run seulement pour les PR.
+  # Sur main/tags, on ne coupe JAMAIS une publication en cours
+  # (sinon une image pourrait être publiée et pas l'autre).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHON_VERSION: '3.12'
 
 jobs:
+  # -----------------------------------------------------------------
+  # 1) Contrôles qualité : tests + validation de la configuration
+  # -----------------------------------------------------------------
   quality:
     name: Quality checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15   # évite qu'un job bloqué tourne pendant 6 heures
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -45,9 +55,21 @@ jobs:
           mkdir -p Tests_results
           pytest Tests/test_model.py -v --json-report --json-report-file=Tests_results/results.json
 
+      # Conserve le rapport de tests (même si les tests échouent)
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: Tests_results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Vérifie qu'il n'y a pas d'erreur de syntaxe Python
       - name: Compile Python sources
         run: python -m compileall -q Api Interface Model
 
+      # Vérifie que le docker-compose.yml est valide (avec des valeurs factices)
       - name: Validate Docker Compose configuration
         env:
           DB_NAME: ci_db
@@ -57,10 +79,127 @@ jobs:
           VERSION: ci
         run: docker compose config --quiet
 
-  build-scan-publish:
-    name: Build, scan & publish ${{ matrix.name }}
+  # -----------------------------------------------------------------
+  # 2) Construction, scan de sécurité et test de démarrage des images
+  #    (aucune publication ici)
+  # -----------------------------------------------------------------
+  build-scan:
+    name: Build & scan ${{ matrix.name }}
     needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_REF: ${{ matrix.image }}:ci-${{ github.sha }}
+    strategy:
+      fail-fast: false   # si une image échoue, l'autre est quand même testée
+      matrix:
+        include:
+          - name: api
+            image: oncoscan-api
+            dockerfile: Api/Dockerfile
+          - name: interface
+            image: oncoscan-interface
+            dockerfile: Interface/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Connexion à Docker Hub pour éviter les limites de téléchargement de l'image
+      # de base Python (impossible pour les PR venant de forks : pas de secrets)
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Construit l'image en local (non publiée) pour la tester
+      - name: Build image for testing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          tags: ${{ env.IMAGE_REF }}
+          load: true
+          push: false
+          pull: true   # récupère la dernière version de l'image de base (correctifs de sécurité)
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # Scan des vulnérabilités : le pipeline échoue s'il y a du CRITICAL/HIGH corrigeable.
+      # Action épinglée sur un commit précis (v0.36.0) : ses tags ont été piratés en
+      # mars 2026 (avis GHSA-69fq-xp46-6x23), un commit ne peut pas être modifié.
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
+
+      # Vérifie que le conteneur démarre vraiment et devient "healthy",
+      # avec les mêmes restrictions que dans docker-compose (sans privilèges)
+      - name: Smoke test (container starts and is healthy)
+        env:
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+
+          case "$NAME" in
+            api)
+              if [ ! -f Save_models/adaboost_pipeline.joblib ]; then
+                echo "::warning::Modèle absent du dépôt : smoke test de l'API ignoré"
+                exit 0
+              fi
+              ARGS=(
+                -e API_KEY=ci-test-key
+                -e MODEL_PATH=/app/Save_models/adaboost_pipeline.joblib
+                -v "$PWD/Save_models:/app/Save_models:ro"
+              )
+              ;;
+            interface)
+              ARGS=(-e API_KEY=ci-test-key -e DB_PASSWORD=ci-test-password)
+              ;;
+            *)
+              echo "Service inconnu : $NAME"
+              exit 1
+              ;;
+          esac
+
+          docker run -d --name smoke \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --health-interval 5s \
+            "${ARGS[@]}" "$IMAGE_REF"
+
+          # Attend jusqu'à ~2 minutes que le healthcheck du Dockerfile passe au vert
+          for attempt in $(seq 1 40); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' smoke)
+            echo "Tentative ${attempt}/40 : ${status}"
+            [ "$status" = "healthy" ] && exit 0
+            [ "$status" = "unhealthy" ] && break
+            [ "$(docker inspect --format '{{.State.Running}}' smoke)" = "true" ] || break
+            sleep 3
+          done
+
+          echo "::error::Le conteneur ${NAME} n'est pas devenu healthy"
+          docker logs smoke
+          exit 1
+
+  # -----------------------------------------------------------------
+  # 3) Publication sur Docker Hub
+  #    Seulement si TOUTES les images ont passé le scan et le smoke test,
+  #    et uniquement sur push vers main ou sur un tag de version
+  # -----------------------------------------------------------------
+  publish:
+    name: Publish ${{ matrix.name }}
+    needs: build-scan
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -73,54 +212,32 @@ jobs:
             dockerfile: Interface/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
+      # Calcule les noms de tags de l'image
       - name: Generate image metadata
         id: metadata
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           tags: |
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=tag
+            type=semver,pattern={{version}}
 
       - name: Log in to Docker Hub
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
-          registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build image for testing
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ${{ matrix.dockerfile }}
-          tags: ${{ matrix.image }}:ci-${{ github.sha }}
-          load: true
-          push: false
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
-
-      - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ matrix.image }}:ci-${{ github.sha }}
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
-
+      # Reconstruit avec le cache du job précédent (rapide) et publie
       - name: Push image to Docker Hub
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -128,4 +245,3 @@ jobs:
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
