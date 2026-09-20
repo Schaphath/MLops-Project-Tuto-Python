@@ -34,8 +34,8 @@ def compare_models(
     test_size: float = 0.2,
     random_state: int = 42,
     save_models: bool = True,
-    output_dir: str = "Save_models",
-):
+    output_dir: str = "Save_models"
+    ):
     if selected_features is None:
         selected_features = [
             "perimeter",
@@ -68,7 +68,7 @@ def compare_models(
     y_test = y_test.to_numpy()
 
     print(f"Train set : {X_train.shape[0]} échantillons")
-    print(f"Test set  : {X_test.shape[0]} échantillons\n")
+    print(f"Test set : {X_test.shape[0]} échantillons\n")
 
     n_neg = (y_train == 0).sum()
     n_pos = (y_train == 1).sum()
@@ -76,6 +76,7 @@ def compare_models(
     scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
     priors = [n_neg / len(y_train), n_pos / len(y_train)]
 
+    # Dict modèle ç entrainer 
     base_models = {
         "Logistic Regression": LogisticRegression(
             C=1.0,
@@ -116,6 +117,7 @@ def compare_models(
         ),
     }
 
+    # pipe pour l'entrainement 
     pipelines = {
         name: Pipeline([("scaler", MinMaxScaler()), ("model", model)])
         for name, model in base_models.items()
@@ -203,6 +205,7 @@ def compare_models(
         fontsize=13,
         fontweight="bold",
     )
+
     plt.tight_layout()
 
     #==================================================#
@@ -241,11 +244,13 @@ def compare_models(
         "Nombre d'échantillons d'entraînement", fontweight="bold"
     )
     ax_learning.set_ylabel("Recall", fontweight="bold")
+
     ax_learning.set_title(
         f"Courbe d'apprentissage -- {best_model_name}",
         fontsize=13,
         fontweight="bold",
     )
+
     ax_learning.legend(loc="lower right")
     ax_learning.grid(True, alpha=0.3, linestyle="--")
     ax_learning.set_ylim(0, 1.05)
@@ -289,9 +294,9 @@ def compare_models(
     )
 
 
-# =========================#
-#   Lancer l'entraînement  #
-# =========================#
+#=========================#
+#   Lancer l'entraînement #
+#=========================#
 if __name__ == "__main__":
     df = pd.read_csv("Data/process/cancer_select.csv", sep=",")
 
