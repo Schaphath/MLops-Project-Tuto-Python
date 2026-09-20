@@ -1,24 +1,53 @@
+# Réglages communs, réutilisés plus bas avec "<<: *nom"
+
+# Limite la taille des logs (sans ça, le disque du serveur finit par se remplir)
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# Durcissement de sécurité : aucun privilège Linux spécial pour l'API et l'interface
+x-hardening: &hardening
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
 services:
+  # ---------------------------------------------------------------
+  # Base de données PostgreSQL
+  # ---------------------------------------------------------------
   postgres:
-    image: postgres:16-alpine
+    <<: *logging
+    image: postgres:16-alpine   # À épingler sur une version précise (ex: 16.x-alpine)
     restart: unless-stopped
     environment:
+      # ":?" = le démarrage est bloqué si la variable manque dans le fichier .env
       POSTGRES_DB: ${DB_NAME:?DB_NAME must be set}
       POSTGRES_USER: ${DB_USER:?DB_USER must be set}
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     volumes:
+      # Données conservées même si le conteneur est supprimé
       - pgdata:/var/lib/postgresql/data
+      # Script exécuté UNIQUEMENT à la première création de la base (volume vide)
       - ./Database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
     healthcheck:
+      # "$$" : le $ est évalué dans le conteneur et non par docker compose
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 10s
     networks:
-      - db-net
+      - db-net   # La base n'est joignable que depuis le réseau "db-net"
 
+  # ---------------------------------------------------------------
+  # API FastAPI
+  # ---------------------------------------------------------------
   api:
+    <<: [*logging, *hardening]
     build:
       context: .
       dockerfile: ./Api/Dockerfile
@@ -27,52 +56,67 @@ services:
     environment:
       API_KEY: ${API_KEY:?API_KEY must be set}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
-      MODEL_PATH: /app/api/../Save_models/adaboost_pipeline.joblib
+      # Chemin simplifié (plus de "/../") : correspond exactement au volume monté ci-dessous
+      MODEL_PATH: /app/Save_models/adaboost_pipeline.joblib
+      MODEL_VERSION: ${VERSION:-2.0.0}   # même version que le tag de l'image
+      INFERENCE_LOG_DIR: /app/logs
       LOG_LEVEL: INFO
     volumes:
+      # Modèle en lecture seule (le fichier doit être lisible par tous sur le serveur)
       - ./Save_models:/app/Save_models:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
+      # Logs d'inférence conservés entre les redémarrages (pour Evidently AI)
+      - inference-logs:/app/logs
     ports:
-      - "8000:8000"
+      # Accessible seulement depuis le serveur lui-même (test, reverse proxy local).
+      # L'interface, elle, passe par le réseau interne : http://api:8000
+      - "127.0.0.1:8000:8000"
     networks:
-      - internal-net
-      - db-net
+      - internal-net   # L'API n'a pas besoin de la base de données
 
+  # ---------------------------------------------------------------
+  # Interface Streamlit
+  # ---------------------------------------------------------------
   interface:
+    <<: [*logging, *hardening]
     build:
       context: .
       dockerfile: ./Interface/Dockerfile
     image: oncoscan-app:${VERSION:-2.0.0}
     restart: unless-stopped
     environment:
+      # "api" = nom du service : Docker le traduit en adresse IP interne
       API_URL: http://api:8000/predict
       API_KEY: ${API_KEY:?API_KEY must be set}
       DB_HOST: postgres
-      DB_PORT: 5432
+      DB_PORT: "5432"
       DB_NAME: ${DB_NAME:?DB_NAME must be set}
       DB_USER: ${DB_USER:?DB_USER must be set}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      STREAMLIT_SERVER_HEADLESS: "true"
-      STREAMLIT_SERVER_GATHER_USAGE_STATS: "false"
-      STREAMLIT_SERVER_PORT: "8501"
+      APP_VERSION: ${VERSION:-2.0.0}
+      # Mettre "false" une fois les comptes créés : plus personne ne peut s'inscrire seul
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      # Les variables STREAMLIT_* sont déjà définies dans le Dockerfile de l'interface
     depends_on:
+      # L'interface démarre seulement quand la base ET l'API sont "healthy"
       postgres:
         condition: service_healthy
       api:
         condition: service_healthy
     ports:
-      - "8501:8501"
+      - "8501:8501"   # Seul point d'entrée public
     networks:
       - internal-net
       - db-net
 
 volumes:
   pgdata:
+  inference-logs:
 
 networks:
+  # Réseau entre l'interface et l'API
   internal-net:
     driver: bridge
+  # Réseau de la base de données : "internal" = aucun accès à Internet
   db-net:
     driver: bridge
+    internal: true
