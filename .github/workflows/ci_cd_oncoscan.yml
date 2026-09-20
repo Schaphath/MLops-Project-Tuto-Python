@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 15   # évite qu'un job bloqué tourne pendant 6 heures
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -102,7 +102,7 @@ jobs:
             dockerfile: Interface/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -212,7 +212,7 @@ jobs:
             dockerfile: Interface/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
