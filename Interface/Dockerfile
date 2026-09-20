@@ -1,67 +1,92 @@
 # syntax=docker/dockerfile:1.7
 
-# BUILD STAGE
-# On construit sur `slim` car ce projet contient des dépendances scientifiques lourdes
-# et des librairies native qui compilent plus facilement et plus stablement sur Debian slim.
+# Version de Python définie une seule fois (utilisée par les 2 étapes)
+ARG PYTHON_VERSION=3.12
 
-FROM python:3.12-slim AS builder
+#---------------#
+#  BUILD STAGE  #
+#---------------#
+# Étape 1 : on installe les dépendances dans un environnement virtuel.
+# Cette étape ne sera PAS dans l'image finale.
+# Image "slim" (Debian) : compatible avec les wheels précompilés des libs
+# scientifiques (numpy, pandas, scipy...). Attention : slim n'a PAS de compilateur.
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
+# Variables d'environnement pour l'étape de build
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    VIRTUAL_ENV=/opt/venv \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH"
 
+# Dossier de travail temporaire pour le build
 WORKDIR /build
 
-# Ce stage sert à créer un venv propre contenant les dépendances métier.
+# Création de l'environnement virtuel + mise à jour de pip
 RUN python -m venv "$VIRTUAL_ENV" && \
-    pip install --upgrade pip setuptools wheel
+    pip install --upgrade pip
 
+# On copie d'abord SEULEMENT le fichier des dépendances :
+# tant qu'il ne change pas, Docker réutilise le cache et le build est rapide
 COPY Interface/requirements_interface.txt ./requirements_interface.txt
 
-RUN pip install --no-cache-dir -r requirements_interface.txt
+# Installation des dépendances (le cache pip est déjà désactivé par PIP_NO_CACHE_DIR)
+RUN pip install -r requirements_interface.txt
 
-# 2) RUNTIME STAGE
-# L'image finale reste légère tout en restant compatible avec les dépendances web/ML.
+#-----------------#
+#  RUNTIME STAGE  #
+#-----------------#
+# Étape 2 : image finale, la seule qui sera déployée en production
+FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
 
-FROM python:3.12-slim AS runtime
+# Métadonnées de l'image
+LABEL org.opencontainers.image.title="interface" \
+      org.opencontainers.image.description="Interface web Streamlit"
 
+# Variables d'environnement pour l'exécution
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    VIRTUAL_ENV=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
     STREAMLIT_SERVER_PORT=8501 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-WORKDIR /app
-
+# Bibliothèques système nécessaires + création d'un utilisateur non-root
+# (UID/GID fixes pour être compatible avec Kubernetes, etc.)
+# libgomp1 : utilisé par plusieurs libs scientifiques (déjà nécessaire pour l'API)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
-        libstdc++6 && \
-    apt-get clean && \
+        libstdc++6 \
+        libgomp1 && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd -g 10001 app && \
-    useradd -u 10001 -g app -m -d /home/app app && \
-    mkdir -p /app/.streamlit && \
-    chown -R app:app /app
+    groupadd --gid 10001 app && \
+    useradd --uid 10001 --gid app --create-home --home-dir /home/app app
 
-COPY --from=builder --chown=app:app /opt/venv /opt/venv
-COPY --chown=app:app ./Interface /app/interface
+# Récupération de l'environnement virtuel construit à l'étape 1
+# (propriétaire root + lecture seule pour l'utilisateur app = plus sûr)
+COPY --from=builder /opt/venv /opt/venv
 
+# Dossier de l'application (créé automatiquement)
 WORKDIR /app/interface
 
-USER 10001
+# Copie du code de l'interface (le .dockerignore filtre les fichiers inutiles/sensibles)
+COPY Interface/ /app/interface/
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8501/_stcore/health", timeout=2)' || exit 1
+# À partir d'ici, plus aucun droit root : le processus tourne avec l'utilisateur app
+USER 10001:10001
 
+# Vérification de l'état de Streamlit (endpoint de santé intégré à Streamlit)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2)"]
+
+# Port d'écoute de Streamlit (documentation, ne publie pas le port)
 EXPOSE 8501
 
+# Signal d'arrêt propre (déjà la valeur par défaut, gardé pour être explicite)
 STOPSIGNAL SIGTERM
 
-CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]
+# Lancement de l'interface (adresse et port viennent des variables STREAMLIT_* ci-dessus)
+CMD ["streamlit", "run", "app.py"]
