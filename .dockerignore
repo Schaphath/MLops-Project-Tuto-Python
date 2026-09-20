@@ -1,23 +1,55 @@
+# À placer à la racine du contexte de build (là où se trouve le dossier Api/)
+# Le contexte de build est "." (racine du projet) : tout ce qui n'est pas listé ici
+# est envoyé à Docker à chaque build.
+
+# Gestion de version
 .git
-.github
 .gitignore
+
+# Secrets et configuration locale (ne JAMAIS embarquer dans l'image)
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
+**/.streamlit/secrets.toml
+*.pem
+*.key
+
+# Fichiers montés en volume par docker-compose (inutiles dans les images)
+Save_models/
+Database/
+
+# Fichiers Python générés
 **/__pycache__/
-**/*.py[cod]
-*.log
+**/*.pyc
+**/*.pyo
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environnements virtuels locaux
 .venv/
 venv/
+env/
+
+# Tests, docs et outils de dev (à adapter si votre code en a besoin)
+**/tests/
+docs/
+*.md
+
+# IDE / OS
 .vscode/
 .idea/
-*.db
-*.sqlite3
-recupdonnees.txt
-README.md
-LICENSE
+.DS_Store
+
+# Docker lui-même
+Dockerfile*
+**/Dockerfile*
 docker-compose*.yml
-Database/
-Save_models/
+.dockerignore
+
+# Logs locaux d'inférence (ne pas embarquer de données dans l'image)
+**/logs/
+*.csv
