@@ -11,3 +11,4 @@ tornado==6.4.2
 pyarrow==18.0.0
 urllib3==2.2.3
 setuptools==78.1.1
+dotenv==0.9.9

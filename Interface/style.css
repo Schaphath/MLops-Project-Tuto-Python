@@ -1,0 +1,616 @@
+/* ==========================================================================
+   OncoScan AI – style css
+   Sommaire
+     1. Variables & polices
+     2. Base & conteneur
+     3. Interface Streamlit (masquage des éléments non désirés)
+     4. Branding & titres
+     5. Onglets
+     6. Formulaires (cartes)
+     7. Champs de saisie
+     8. Boutons
+     9. Alertes & messages
+    10. Barre latérale
+    11. Tableau d'historique
+    12. Pied de page
+    13. Accessibilité
+    14. Responsive
+   ========================================================================== */
+
+/* -----------------------
+   VARIABLES & POLICES
+   ----------------------- */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap');
+
+:root {
+    /* Palette */
+    --rose-50: #fffafb;        /* Fond principal */
+    --rose-100: #f8eef1;       /* En-têtes, sidebar, survols */
+    --rose-200: #ead6dc;       /* Bordures */
+    --rose-400: #c98596;       /* Accent léger */
+    --rose-600: #9e5367;       /* Boutons & accent */
+    --rose-700: #874459;       /* Survol des boutons */
+    --ink: #30242a;            /* Texte principal */
+    --muted: #76656b;          /* Texte secondaire */
+    --placeholder: #aa999f;
+    --white: #ffffff;
+
+    /* Typographie */
+    --font-body: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-title: 'Manrope', 'DM Sans', system-ui, sans-serif;
+
+    /* Formes & ombres */
+    --radius-sm: 8px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 2px rgba(48, 36, 42, .05);
+    --shadow-md: 0 8px 24px rgba(158, 83, 103, .08);
+    --shadow-btn: 0 4px 10px rgba(158, 83, 103, .14);
+
+    /* Largeurs */
+    --w-auth: 480px;           /* Formulaires de connexion / inscription */
+    --w-form: 720px;           /* Formulaire d'analyse */
+    --w-page: 1100px;          /* Largeur maximale de la page */
+}
+
+/* -------------------
+   BASE & CONTENEUR
+   ------------------- */
+html, body, .stApp,
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stHeader"] {
+    background: var(--rose-50) !important;
+    color: var(--ink) !important;
+    font-family: var(--font-body) !important;
+    -webkit-font-smoothing: antialiased;
+}
+
+[data-testid="stMainBlockContainer"] {
+    max-width: var(--w-page) !important;
+    padding: 2.5rem 1.5rem 1.5rem !important;
+}
+
+h1, h2, h3, h4 {
+    color: var(--ink) !important;
+    font-family: var(--font-title) !important;
+    letter-spacing: -.01em;
+}
+
+p, label, [data-testid="stMarkdownContainer"] {
+    color: var(--ink) !important;
+}
+
+[data-testid="stCaptionContainer"] p {
+    color: var(--muted) !important;
+}
+
+hr {
+    border-color: var(--rose-200) !important;
+    opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   INTERFACE STREAMLIT
+   On masque la barre d'outils (Deploy / menu) et le décor :
+   l'en-tête reste en place afin de conserver le bouton de la barre latérale.
+   -------------------------------------------------------------------------- */
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+#MainMenu {
+    display: none !important;
+}
+
+footer {
+    visibility: hidden;
+}
+
+/* --------------------
+   BRANDING & TITRES
+   -------------------- */
+.auth-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    color: var(--ink);
+    font: 800 2.2rem var(--font-title);
+    margin: 0 0 2rem;
+}
+
+.brand-mark {
+    display: grid;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    border-radius: var(--radius-lg);
+    color: var(--white);
+    background: linear-gradient(135deg, var(--rose-400), var(--rose-600));
+    font-size: 2rem;
+    box-shadow: 0 8px 18px rgba(158, 83, 103, .2);
+}
+
+.app-brand {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    color: var(--ink);
+    font: 800 1.35rem var(--font-title);
+    margin: .35rem 0 1.2rem;
+}
+
+.app-brand-mark {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 11px;
+    color: var(--white);
+    background: linear-gradient(135deg, var(--rose-400), var(--rose-600));
+    font-size: 1.4rem;
+    box-shadow: 0 5px 12px rgba(158, 83, 103, .16);
+}
+
+.auth-heading,
+.dashboard-heading {
+    text-align: center;
+    margin: 0 0 1.4rem;
+}
+
+.dashboard-title,
+.auth-title {
+    font-size: clamp(1.5rem, 2.5vw, 2.1rem) !important;
+    line-height: 1.15;
+    margin: 0 0 .5rem;
+}
+
+.auth-kicker {
+    color: var(--rose-600) !important;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+    margin: 0 0 .75rem;
+}
+
+.auth-subtitle,
+.analysis-subtitle {
+    color: var(--muted) !important;
+    font-size: .96rem;
+    line-height: 1.6;
+    max-width: 42rem;
+    margin: 0 auto 1.5rem;
+    text-align: center;
+}
+
+/* -----------
+   ONGLETS
+   ----------- */
+[data-testid="stTabs"] {
+    width: 100% !important;
+    margin: 0 auto 1rem !important;
+}
+
+[data-testid="stTabs"] [role="tablist"] {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: .5rem !important;
+    border-bottom: 2px solid var(--rose-100) !important;
+    padding-bottom: 2px !important;
+}
+
+[data-testid="stTabs"] button[role="tab"] {
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    flex: 0 1 220px !important;
+    min-width: 160px !important;
+    color: var(--muted) !important;
+    font-weight: 600 !important;
+    font-size: .92rem !important;
+    padding: .7rem 1rem !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
+    margin-bottom: -2px !important;
+    white-space: nowrap !important;
+    transition: color .2s ease, background .2s ease, border-color .2s ease;
+}
+
+[data-testid="stTabs"] button[role="tab"]:hover {
+    color: var(--rose-600) !important;
+    background: rgba(248, 238, 241, .6) !important;
+    border-radius: 6px 6px 0 0 !important;
+}
+
+[data-testid="stTabs"] button[aria-selected="true"] {
+    color: var(--rose-600) !important;
+    border-bottom: 2px solid var(--rose-600) !important;
+    background: transparent !important;
+}
+
+/* Barre de surbrillance native de Streamlit, alignée sur l'accent */
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
+    background-color: var(--rose-600) !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab-border"] {
+    background-color: transparent !important;
+}
+
+[data-testid="stTabs"] [role="tabpanel"] {
+    padding-top: 1.25rem;
+}
+
+/* -----------------------
+   FORMULAIRES (CARTES)
+   ----------------------- */
+[data-testid="stForm"] {
+    width: 100% !important;
+    max-width: var(--w-form) !important;
+    margin: 0 auto 1rem !important;
+    padding: 1.75rem !important;
+    background: var(--white) !important;
+    border: 1px solid var(--rose-200) !important;
+    border-radius: var(--radius-lg) !important;
+    box-shadow: var(--shadow-md);
+}
+
+/* Formulaires d'authentification */
+[data-testid="stForm"]:has(input[type="password"]) {
+    max-width: var(--w-auth) !important;
+}
+
+/* -------------------
+   CHAMPS DE SAISIE
+   ------------------- */
+[data-testid="stTextInput"] label,
+[data-testid="stNumberInput"] label,
+[data-testid="stSelectbox"] label,
+[data-testid="stCheckbox"] label {
+    color: var(--ink) !important;
+    font-size: .82rem !important;
+    font-weight: 600 !important;
+}
+
+/* Conteneur visuel du champ : une seule bordure, fond blanc pur */
+[data-testid="stTextInput"] div[data-baseweb="input"],
+[data-testid="stNumberInput"] div[data-baseweb="input"] {
+    background-color: var(--white) !important;
+    border: 1px solid var(--rose-200) !important;
+    border-radius: var(--radius-md) !important;
+    box-shadow: none !important;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+[data-testid="stTextInput"] div[data-baseweb="base-input"],
+[data-testid="stNumberInput"] div[data-baseweb="base-input"] {
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Saisie + neutralisation du fond de l'autofill navigateur */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stTextInput"] input:-webkit-autofill,
+[data-testid="stTextInput"] input:-webkit-autofill:hover,
+[data-testid="stTextInput"] input:-webkit-autofill:focus,
+[data-testid="stNumberInput"] input:-webkit-autofill,
+[data-testid="stNumberInput"] input:-webkit-autofill:hover,
+[data-testid="stNumberInput"] input:-webkit-autofill:focus {
+    background-color: transparent !important;
+    -webkit-text-fill-color: var(--ink) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--white) inset !important;
+    color: var(--ink) !important;
+    font-size: .9rem !important;
+    border: none !important;
+}
+
+[data-testid="stTextInput"] input::placeholder {
+    color: var(--placeholder) !important;
+    opacity: 1 !important;
+}
+
+/* Icône « afficher le mot de passe » */
+[data-testid="stTextInput"] div[data-baseweb="input"] button {
+    background-color: transparent !important;
+    border: none !important;
+}
+
+[data-testid="stTextInput"] svg {
+    fill: var(--muted) !important;
+    color: var(--muted) !important;
+}
+
+/* Boutons + / - du champ numérique */
+[data-testid="stNumberInput"] button {
+    background-color: var(--rose-100) !important;
+    color: var(--ink) !important;
+    border: none !important;
+}
+
+[data-testid="stNumberInput"] button:hover {
+    background-color: var(--rose-200) !important;
+}
+
+/* Focus */
+[data-testid="stTextInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stNumberInput"] div[data-baseweb="input"]:focus-within,
+[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within > div {
+    border-color: var(--rose-600) !important;
+    box-shadow: 0 0 0 3px rgba(158, 83, 103, .14) !important;
+}
+
+/* Liste déroulante */
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+    min-height: 36px !important;
+    font-size: .85rem !important;
+    background-color: var(--white) !important;
+    border: 1px solid var(--rose-200) !important;
+    border-radius: var(--radius-md) !important;
+}
+
+[data-testid="stSelectbox"] div[data-baseweb="select"] * {
+    color: var(--ink) !important;
+}
+
+li[role="option"]:hover,
+li[role="option"][aria-selected="true"] {
+    background-color: var(--rose-100) !important;
+}
+
+/* Infobulles d'aide (icône « ? ») */
+[data-testid="stTooltipIcon"] svg {
+    fill: var(--rose-400) !important;
+}
+
+[data-testid="stTooltipIcon"] > div,
+[role="tooltip"],
+div[data-baseweb="popover"],
+div[data-baseweb="tooltip"] {
+    background-color: var(--white) !important;
+    color: var(--ink) !important;
+    border: 1px solid var(--rose-200) !important;
+    border-radius: var(--radius-sm) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .08) !important;
+}
+
+div[data-baseweb="tooltip"] * {
+    color: var(--ink) !important;
+    background-color: var(--white) !important;
+}
+
+[data-testid="stInputHelp"],
+.stMarkdown small {
+    color: var(--muted) !important;
+    font-size: .78rem !important;
+}
+
+/* --------------------------
+   BOUTONS
+   Principal : rose plein. 
+   -------------------------- */
+.stButton > button,
+[data-testid="stFormSubmitButton"] button,
+[data-testid="stDownloadButton"] button {
+    width: min(100%, 220px) !important;
+    min-height: 2.7rem !important;
+    padding: .65rem 1.2rem !important;
+    border-radius: 9px !important;
+    border: 1px solid var(--rose-600) !important;
+    background-color: var(--rose-600) !important;
+    color: var(--white) !important;
+    font-weight: 700 !important;
+    box-shadow: var(--shadow-btn) !important;
+    transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.stButton > button *,
+[data-testid="stFormSubmitButton"] button *,
+[data-testid="stDownloadButton"] button * {
+    color: inherit !important;
+}
+
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] button:hover {
+    background-color: var(--rose-700) !important;
+    border-color: var(--rose-700) !important;
+    transform: translateY(-1px);
+}
+
+.stButton > button:active,
+[data-testid="stFormSubmitButton"] button:active,
+[data-testid="stDownloadButton"] button:active {
+    transform: translateY(0);
+}
+
+[data-testid="stFormSubmitButton"] {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+[data-testid="stDownloadButton"] button {
+    background-color: var(--white) !important;
+    color: var(--rose-600) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+[data-testid="stDownloadButton"] button:hover {
+    background-color: var(--rose-100) !important;
+    border-color: var(--rose-700) !important;
+    color: var(--rose-700) !important;
+}
+
+/* -------------------------------------------------------------------
+   ALERTES & MESSAGES
+   Les couleurs sémantiques (rouge/vert/orange/bleu) sont conservées
+   ------------------------------------------------------------------- */
+[data-testid="stAlert"],
+[data-testid="stAlertContainer"] {
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-sm);
+}
+
+[data-testid="stAlert"] p {
+    font-size: .92rem !important;
+    line-height: 1.5;
+}
+
+[data-testid="stCheckbox"] {
+    margin: .5rem 0 .75rem;
+}
+
+/* -----------------
+   BARRE LATÉRALE
+   ----------------- */
+[data-testid="stSidebar"] {
+    background: var(--rose-100) !important;
+    border-right: 1px solid var(--rose-200);
+}
+
+[data-testid="stSidebar"] .stButton > button {
+    width: 100% !important;
+}
+
+/* -----------------------
+   TABLEAU D'HISTORIQUE
+   ----------------------- */
+[data-testid="stTable"] {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--rose-200);
+    border-radius: var(--radius-md);
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-testid="stTable"] table {
+    width: 100% !important;
+    background: var(--white) !important;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto !important;
+    border: none !important;
+}
+
+[data-testid="stTable"] th {
+    background: var(--rose-100) !important;
+    color: var(--rose-600) !important;
+    font-size: .68rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .03em;
+    padding: 8px 10px !important;
+    border-bottom: 1px solid var(--rose-200) !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+[data-testid="stTable"] td {
+    background: var(--white) !important;
+    color: var(--ink) !important;
+    font-size: .74rem !important;
+    padding: 7px 10px !important;
+    border-bottom: 1px solid #f1e3e7 !important;
+    white-space: nowrap !important;
+    text-align: center !important;
+}
+
+[data-testid="stTable"] tbody tr:hover td {
+    background: var(--rose-50) !important;
+}
+
+[data-testid="stTable"] tbody tr:last-child td {
+    border-bottom: none !important;
+}
+
+/* --------------
+   PIED DE PAGE
+   -------------- */
+.app-footer {
+    text-align: center;
+    color: var(--muted) !important;
+    font-size: .78rem;
+    line-height: 1.5;
+    padding: .25rem 0 1rem;
+}
+
+/* ---------------
+   ACCESSIBILITÉ
+   --------------- */
+button:focus-visible,
+[role="tab"]:focus-visible {
+    outline: 2px solid var(--rose-600) !important;
+    outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* ----------------
+   RESPONSIVE
+   ---------------- */
+@media (max-width: 900px) {
+    [data-testid="stMainBlockContainer"] {
+        padding: 2rem 1.25rem 1.25rem !important;
+    }
+}
+
+@media (max-width: 640px) {
+    [data-testid="stMainBlockContainer"] {
+        padding: 1.25rem .85rem !important;
+    }
+
+    .auth-brand {
+        font-size: 1.7rem;
+        gap: .75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .brand-mark {
+        width: 3.2rem;
+        height: 3.2rem;
+        font-size: 1.6rem;
+    }
+
+    .auth-subtitle,
+    .analysis-subtitle {
+        font-size: .9rem;
+    }
+
+    /* Cartes plus compactes */
+    [data-testid="stForm"] {
+        padding: 1.1rem !important;
+        border-radius: 14px !important;
+    }
+
+    /* Onglets répartis sur toute la largeur */
+    [data-testid="stTabs"] [role="tablist"] {
+        gap: 0 !important;
+    }
+
+    [data-testid="stTabs"] button[role="tab"] {
+        flex: 1 1 0 !important;
+        min-width: 0 !important;
+        font-size: .85rem !important;
+        padding: .65rem .5rem !important;
+    }
+
+    /* Boutons pleine largeur : plus faciles à toucher */
+    .stButton > button,
+    [data-testid="stFormSubmitButton"] button,
+    [data-testid="stDownloadButton"] button {
+        width: 100% !important;
+        min-height: 2.9rem !important;
+    }
+
+    [data-testid="stTable"] th,
+    [data-testid="stTable"] td {
+        padding: 6px 8px !important;
+    }
+}

@@ -1,15 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
-# Version de Python définie une seule fois (utilisée par les 2 étapes)
+# Version de Python définie une seule fois 
 ARG PYTHON_VERSION=3.12
 
 #---------------#
 #  BUILD STAGE  #
 #---------------#
 # Étape 1 : on installe les dépendances dans un environnement virtuel.
-# Cette étape ne sera PAS dans l'image finale.
-# Image "slim" (Debian) : compatible avec les wheels précompilés des libs
-# scientifiques (numpy, pandas, scipy...). Attention : slim n'a PAS de compilateur.
+# Bon savoir : image "slim" Debian est compatible avec les wheels précompilés des libs scientifiques 
+# (numpy, pandas, scipy...) - Attention : slim n'a PAS de compilateur.
 FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
 # Variables d'environnement pour l'étape de build
@@ -27,11 +26,11 @@ WORKDIR /build
 RUN python -m venv "$VIRTUAL_ENV" && \
     pip install --upgrade pip
 
-# On copie d'abord SEULEMENT le fichier des dépendances :
+# On copie le fichier des dépendances :
 # tant qu'il ne change pas, Docker réutilise le cache et le build est rapide
 COPY Interface/requirements_interface.txt ./requirements_interface.txt
 
-# Installation des dépendances (le cache pip est déjà désactivé par PIP_NO_CACHE_DIR)
+# Installation des dépendances
 RUN pip install -r requirements_interface.txt
 
 #-----------------#
@@ -54,8 +53,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
 # Bibliothèques système nécessaires + création d'un utilisateur non-root
-# (UID/GID fixes pour être compatible avec Kubernetes, etc.)
-# libgomp1 : utilisé par plusieurs libs scientifiques (déjà nécessaire pour l'API)
+# UID/GID fixes pour être compatible avec Kubernetes, etc.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -66,27 +64,26 @@ RUN apt-get update && \
     useradd --uid 10001 --gid app --create-home --home-dir /home/app app
 
 # Récupération de l'environnement virtuel construit à l'étape 1
-# (propriétaire root + lecture seule pour l'utilisateur app = plus sûr)
 COPY --from=builder /opt/venv /opt/venv
 
-# Dossier de l'application (créé automatiquement)
+# Dossier de l'application
 WORKDIR /app/interface
 
-# Copie du code de l'interface (le .dockerignore filtre les fichiers inutiles/sensibles)
+# Copie du code de l'interface
 COPY Interface/ /app/interface/
 
 # À partir d'ici, plus aucun droit root : le processus tourne avec l'utilisateur app
 USER 10001:10001
 
-# Vérification de l'état de Streamlit (endpoint de santé intégré à Streamlit)
+# Vérification de l'état de l'app
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=2)"]
 
-# Port d'écoute de Streamlit (documentation, ne publie pas le port)
+# Port d'écoute de Streamlit 
 EXPOSE 8501
 
-# Signal d'arrêt propre (déjà la valeur par défaut, gardé pour être explicite)
+# Signal d'arrêt propre 
 STOPSIGNAL SIGTERM
 
-# Lancement de l'interface (adresse et port viennent des variables STREAMLIT_* ci-dessus)
+# Lancement de l'interface 
 CMD ["streamlit", "run", "app.py"]
