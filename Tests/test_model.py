@@ -29,6 +29,7 @@ SELECTED_FEATURES = [
     "symmetry",
 ]
 
+# Indicateurs 
 SEUIL_RECALL = 0.95
 SEUIL_PRECISION = 0.90
 SEUIL_AUC = 0.95
@@ -98,27 +99,18 @@ def pipeline():
     assert model_path.exists(), f"Fichier pipeline introuvable : {model_path}"
     return joblib.load(model_path)
 
-
 @pytest.fixture(scope="module")
 def predictions(dataset, pipeline):
     """Génère le split de validation et les prédictions associées."""
     X = dataset[SELECTED_FEATURES]
     y = _normalize_target(dataset["diagnosis"])
 
-    _, X_test, _, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y,
-    )
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
     y_pred = pipeline.predict(X_test)
-    y_proba = (
-        pipeline.predict_proba(X_test)[:, 1]
+    y_proba = (pipeline.predict_proba(X_test)[:, 1]
         if hasattr(pipeline, "predict_proba")
-        else None
-    )
+        else None)
 
     return {
         "y_test": y_test.to_numpy(),
@@ -136,7 +128,6 @@ class TestQualiteDonnees:
     def test_encodage_cible(self, dataset):
         classes = set(dataset["diagnosis"].dropna().unique())
         assert {"M", "B"}.issubset(classes), "Classes M ou B manquantes."
-
 
 class TestMetriquesModele:
     def test_recall_critique_medical(self, predictions):
@@ -156,7 +147,6 @@ class TestMetriquesModele:
             pytest.skip("predict_proba non disponible.")
         auc = roc_auc_score(predictions["y_test"], predictions["y_proba"])
         assert auc >= SEUIL_AUC, f"AUC insuffisant : {auc:.3f}"
-
 
 class TestRobustesseInference:
     def test_inference_mono_exemple(self, pipeline, predictions):
