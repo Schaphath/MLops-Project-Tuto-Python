@@ -28,7 +28,8 @@ logger = logging.getLogger("oncoscan_api")
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "Save_models" / "adaboost_pipeline.joblib"
 MODEL_PATH = Path(os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH))
-MODEL_VERSION = os.getenv("VERSION")
+# MODEL_VERSION = os.getenv("VERSION")
+MODEL_VERSION = os.getenv("MODEL_VERSION") or os.getenv("VERSION") or "2.0.0"
 
 # Récupération de la clé API depuis l'environnement
 API_KEY = os.getenv("API_KEY")
@@ -107,6 +108,7 @@ async def lifespan(app: FastAPI):
     app.state.positive_idx = find_positive_index(app.state.pipeline)
     logger.info("Pipeline chargé avec succès.")
     yield
+    
     app.state.pipeline = None
 
 
