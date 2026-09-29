@@ -46,10 +46,10 @@ def compare_models(
         ]
 
     available_cols = [c for c in selected_features if c in df.columns]
+
     if len(available_cols) != len(selected_features):
-        print(
-            f" /!\\ Attention : Colonnes introuvables. Utilisation des colonnes disponibles : {available_cols}"
-        )
+        print(f" /!\\ Attention : Colonnes introuvables. Utilisation des colonnes disponibles : {available_cols}")
+    
     X = df[available_cols]
     y = df[target_col]
 
