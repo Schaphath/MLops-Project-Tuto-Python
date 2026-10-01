@@ -1,14 +1,13 @@
-# À placer dans : .github/dependabot.yml
 # Dependabot ouvre automatiquement des PR quand une version plus récente existe.
 version: 2
 updates:
-  # Actions GitHub utilisées dans les workflows (y compris celles épinglées par SHA)
+  # Actions GitHub utilisées dans les workflows
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
 
-  # Images de base des Dockerfile (python:3.12-slim-bookworm)
+  # Images de base des Dockerfile
   - package-ecosystem: docker
     directories:
       - /Api

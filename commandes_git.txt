@@ -16,13 +16,12 @@ git pull origin main --rebase
 git push origin main
 git push origin main --force
 
+# Basculer sur main
+git switch main
 
 # Sauvegarder les modifications dans le stash
 git stash
 
-# Basculer sur main
-git switch main
-
-# Récupérer tes modifications 
+# Récupérer les modifications 
 # git switch codemodif
 # git stash pop
