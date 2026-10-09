@@ -84,7 +84,6 @@ def compare_models(
             class_weight="balanced",
             random_state=random_state,
         ),
-        "Gaussian Naive Bayes": GaussianNB(priors=priors),
         "Decision Tree": DecisionTreeClassifier(
             max_depth=5,
             min_samples_leaf=5,
