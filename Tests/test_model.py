@@ -26,8 +26,8 @@ SELECTED_FEATURES = [
     "concave_points",
     "texture",
     "smoothness",
-    "symmetry",
-]
+    "symmetry"
+    ]
 
 # Indicateurs 
 SEUIL_RECALL = 0.95
