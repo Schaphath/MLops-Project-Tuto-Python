@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
-# Chargement des variables d'environnement
 # Charge automatiquement le fichier .env 
 load_dotenv()
 
@@ -28,10 +27,9 @@ logger = logging.getLogger("oncoscan_api")
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "Save_models" / "adaboost_pipeline.joblib"
 MODEL_PATH = Path(os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH))
-# MODEL_VERSION = os.getenv("VERSION")
 MODEL_VERSION = os.getenv("MODEL_VERSION") or os.getenv("VERSION") or "2.0.0"
 
-# Récupération de la clé API depuis l'environnement
+# Récupération de la clé API depuis le fichier .env  
 API_KEY = os.getenv("API_KEY")
 
 # Variables d'entrainement
@@ -58,7 +56,7 @@ class PredictionRequest(BaseModel):
                     "symmetry": 0.1812,
                 }
             ]
-        },
+        }
     )
 
     perimeter: float = Field(..., gt=40.0, le=250.0)
